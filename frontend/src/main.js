@@ -1,6 +1,19 @@
 import { db } from "./firebase.js";
 import {
   collection,
+  collectionGroup,
+  onSnapshot,
+  getDocs,
+  getDocsFromServer,
+  query,
+  where,
+  doc,
+  updateDoc,
+  arrayUnion,
+  serverTimestamp
+} from "firebase/firestore";
+import {
+  collection,
   onSnapshot,
   getDocs,
   query,
@@ -354,6 +367,20 @@ document.addEventListener("click", async event => {
 
 // Fetch reports belonging to a student
 async function loadMine(studentInput = null) {
+
+
+console.log("Project ID the app uses:", db.app.options.projectId);
+
+try {
+  const s = await getDocsFromServer(collection(db, "reports"));
+  console.log("SERVER reports:", s.size);
+  console.table(s.docs.map(d => ({ id: d.id, ...d.data() })));
+} catch (e) {
+  console.error("SERVER READ FAILED:", e.code, e.message);
+}
+
+const g = await getDocsFromServer(collectionGroup(db, "reports"));
+console.log("collectionGroup reports:", g.size, g.docs.map(d => d.ref.path));
   const output = $("#list") || $("#mine");
 
   if (!output) {
