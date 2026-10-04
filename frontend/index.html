@@ -1,25 +1,15 @@
 <!doctype html>
-<html lang="en">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Campus Issues</title><link rel="stylesheet" href="/src/style.css"></head>
-<body>
-<nav>
-  <button data-t="report" class="on">Report</button><button data-t="mine">My Reports</button>
-  <button data-t="auth">Authority</button><button data-t="admin">Admin</button>
-</nav>
-<section id="report">
-  <form id="form">
-    <input id="student" placeholder="Your name / ID" required>
-    <select id="cat"></select>
-    <select id="building"></select><select id="floor"></select>
-    <input id="room" placeholder="Room (e.g. Lab 204)">
-    <textarea id="desc" placeholder="Describe the issue" required></textarea>
-    <input id="photo" type="file" accept="image/*">
-    <button>Submit</button><p id="msg"></p>
-  </form>
-</section>
-<section id="mine" hidden></section>
-<section id="auth" hidden><select id="dept"></select><div id="authList"></div></section>
-<section id="admin" hidden></section>
-<script type="module" src="/src/main.js"></script>
-</body></html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Report Issue · CampusCare</title><link rel="stylesheet" href="/src/style.css"></head>
+<body><div id="nav"></div>
+<main><h1>Report a campus issue</h1><p class="sub">Add a location, a description and optionally a photo. It is routed to the right team automatically.</p>
+<form id="form" class="panel">
+  <label>Your name / ID<input id="student" required></label>
+  <label>Category<select id="cat"></select></label>
+  <div class="row"><label>Building<select id="building"></select></label><label>Floor<select id="floor"></select></label></div>
+  <label>Room<input id="room" placeholder="e.g. Lab 204"></label>
+  <label>Description<textarea id="desc" required placeholder="What is wrong?"></textarea></label>
+  <label>Photo (optional)<input id="photo" type="file" accept="image/*"></label>
+  <button id="go">Submit report</button><div id="msg"></div>
+</form>
+</main><script type="module" src="/src/report.js"></script></body></html>
