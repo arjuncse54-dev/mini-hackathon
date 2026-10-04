@@ -1,15 +1,1 @@
-<!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Report Issue · CampusCare</title><link rel="stylesheet" href="/src/style.css"></head>
-<body><div id="nav"></div>
-<main><h1>Report a campus issue</h1><p class="sub">Add a location, a description and optionally a photo. It is routed to the right team automatically.</p>
-<form id="form" class="panel">
-  <label>Your name / ID<input id="student" required></label>
-  <label>Category<select id="cat"></select></label>
-  <div class="row"><label>Building<select id="building"></select></label><label>Floor<select id="floor"></select></label></div>
-  <label>Room<input id="room" placeholder="e.g. Lab 204"></label>
-  <label>Description<textarea id="desc" required placeholder="What is wrong?"></textarea></label>
-  <label>Photo (optional)<input id="photo" type="file" accept="image/*"></label>
-  <button id="go">Submit report</button><div id="msg"></div>
-</form>
-</main><script type="module" src="/src/report.js"></script></body></html>
+<!doctype html> <html lang="en"> <head> <meta charset="utf-8"> <meta name="viewport" content="width=device-width,initial-scale=1"> <title>Report Issue · CampusCare</title> <link rel="stylesheet" href="/src/style.css"> </head> <body> <div id="nav"></div> <main> <h1>Report a campus issue</h1> <p class="sub"> Add a location, a description and optionally a photo. It is routed to the right team automatically. </p> <form id="form" class="panel"> <label> Your name / ID <input id="student" required placeholder="Enter your name or student ID" > </label> <label> Category <select id="cat"></select> </label> <div class="row"> <label> Building <select id="building"></select> </label> <label> Floor <select id="floor"></select> </label> </div> <label> Room <input id="room" placeholder="e.g. Lab 204" > </label> <label> Description <textarea id="desc" required placeholder="What is wrong?" ></textarea> </label> <label> Photo (optional) <input id="photo" type="file" accept="image/*" > </label> <button id="go"> Submit report </button> <div id="msg"></div> </form> </main> <script type="module" src="/src/report.js"> </script> </body> </html>
