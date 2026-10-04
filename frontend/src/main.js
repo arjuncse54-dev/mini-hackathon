@@ -1,7 +1,7 @@
 import { db } from "./firebase.js";
 import { collection, onSnapshot, getDocs, query, where, doc, updateDoc, arrayUnion, serverTimestamp } from "firebase/firestore";
 
-const API = "http://localhost:8000";
+const API = "http://127.0.0.1:8000";
 const CATS = ["Electrical", "Wi-Fi / Network", "Water leakage", "Sanitation", "Hostel issue", "Classroom equipment", "Security"];
 const DEPTS = ["Electrical", "IT Department", "Plumbing", "Sanitation", "Hostel Warden", "Infrastructure", "Security", "Admin"];
 const STATUS = ["Acknowledged", "In Progress", "Resolved"];
@@ -50,10 +50,33 @@ $("#form").onsubmit = async e => {
 };
 
 let issues = [];
-onSnapshot(collection(db, "issues"), s => {
-  issues = s.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => b.score - a.score);
-  renderAuth(); renderAdmin();
-});
+
+onSnapshot(
+  collection(db, "issues"),
+  s => {
+    console.log("issues received:", s.size);
+
+    issues = s.docs
+      .map(d => ({ id: d.id, ...d.data() }))
+      .sort((a, b) => b.score - a.score);
+
+    renderAuth();
+    renderAdmin();
+  },
+  err => {
+    console.error(
+      "Firestore listener error:",
+      err.code,
+      err.message
+    );
+
+    document.body.insertAdjacentHTML(
+      "afterbegin",
+      `<p style="color:red">Firestore error: ${err.code}</p>`
+    );
+  }
+);
+
 
 const card = (i, ctl = "") => `<div class="card p-${i.priority}"><b>${esc(i.category)}</b> · ${esc(i.building)} ${esc(i.floor)} ${esc(i.room)}
   <span class="tag">${i.priority}</span><span class="tag">${i.status}</span><br>${i.reportCount} report(s) · ${esc(i.department)}
