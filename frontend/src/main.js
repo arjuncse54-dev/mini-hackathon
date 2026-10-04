@@ -1,4 +1,3 @@
-
 import { db } from "./firebase.js";
 
 import {
@@ -46,6 +45,10 @@ const STATUS = [
   "Resolved"
 ];
 
+// Cache global state
+let issues = [];
+let cachedReportsDocs = null;
+
 // =========================
 // HELPERS
 // =========================
@@ -54,10 +57,7 @@ const $ = s => document.querySelector(s);
 
 const opts = (el, arr) => {
   if (!el) return;
-
-  el.innerHTML = arr
-    .map(x => `<option>${x}</option>`)
-    .join("");
+  el.innerHTML = arr.map(x => `<option>${x}</option>`).join("");
 };
 
 const esc = s =>
@@ -72,39 +72,17 @@ const esc = s =>
 // INITIALIZE FORM DROPDOWNS
 // =========================
 
-if ($("#cat")) {
-  opts($("#cat"), ["Auto-detect", ...CATS]);
-}
-
-if ($("#building")) {
-  opts($("#building"), [
-    "CS Block",
-    "Main Block",
-    "Hostel A",
-    "Library"
-  ]);
-}
-
-if ($("#floor")) {
-  opts($("#floor"), [
-    "Ground",
-    "1",
-    "2",
-    "3"
-  ]);
-}
-
-if ($("#dept")) {
-  opts($("#dept"), DEPTS);
-}
+if ($("#cat")) opts($("#cat"), ["Auto-detect", ...CATS]);
+if ($("#building")) opts($("#building"), ["CS Block", "Main Block", "Hostel A", "Library"]);
+if ($("#floor")) opts($("#floor"), ["Ground", "1", "2", "3"]);
+if ($("#dept")) opts($("#dept"), DEPTS);
 
 // =========================
 // STUDENT NAME / ID
 // =========================
 
 if ($("#student")) {
-  $("#student").value =
-    localStorage.getItem("student") || "";
+  $("#student").value = localStorage.getItem("student") || "";
 }
 
 // =========================
@@ -113,17 +91,13 @@ if ($("#student")) {
 
 document.querySelectorAll("nav button").forEach(b => {
   b.onclick = () => {
-    document
-      .querySelectorAll("nav button")
-      .forEach(x =>
-        x.classList.toggle("on", x === b)
-      );
+    document.querySelectorAll("nav button").forEach(x =>
+      x.classList.toggle("on", x === b)
+    );
 
-    document
-      .querySelectorAll("section")
-      .forEach(s =>
-        s.hidden = s.id !== b.dataset.t
-      );
+    document.querySelectorAll("section").forEach(s =>
+      s.hidden = s.id !== b.dataset.t
+    );
 
     if (b.dataset.t === "mine") {
       loadMine();
@@ -144,40 +118,20 @@ const toJpeg = file => new Promise(resolve => {
   const img = new Image();
 
   img.onload = () => {
-    const k = Math.min(
-      1,
-      480 / img.width
-    );
+    const k = Math.min(1, 480 / img.width);
+    const canvas = document.createElement("canvas");
 
-    const canvas =
-      document.createElement("canvas");
-
-    canvas.width =
-      img.width * k;
-
-    canvas.height =
-      img.height * k;
+    canvas.width = img.width * k;
+    canvas.height = img.height * k;
 
     canvas
       .getContext("2d")
-      .drawImage(
-        img,
-        0,
-        0,
-        canvas.width,
-        canvas.height
-      );
+      .drawImage(img, 0, 0, canvas.width, canvas.height);
 
-    resolve(
-      canvas.toDataURL(
-        "image/jpeg",
-        0.6
-      )
-    );
+    resolve(canvas.toDataURL("image/jpeg", 0.6));
   };
 
-  img.src =
-    URL.createObjectURL(file);
+  img.src = URL.createObjectURL(file);
 });
 
 // =========================
@@ -188,186 +142,106 @@ if ($("#form")) {
   $("#form").onsubmit = async e => {
     e.preventDefault();
 
-    const student =
-      $("#student").value.trim();
-
-    localStorage.setItem(
-      "student",
-      student
-    );
+    const student = $("#student").value.trim();
+    localStorage.setItem("student", student);
 
     const body = {
       student,
-
-      category:
-        $("#cat").value,
-
-      building:
-        $("#building").value,
-
-      floor:
-        $("#floor").value,
-
-      room:
-        $("#room").value,
-
-      description:
-        $("#desc").value,
-
-      photo:
-        await toJpeg(
-          $("#photo").files[0]
-        )
+      category: $("#cat").value,
+      building: $("#building").value,
+      floor: $("#floor").value,
+      room: $("#room").value,
+      description: $("#desc").value,
+      photo: await toJpeg($("#photo").files[0])
     };
 
-    $("#msg").textContent =
-      "Submitting...";
+    $("#msg").textContent = "Submitting...";
 
     try {
-      const response =
-        await fetch(
-          API + "/report",
-          {
-            method: "POST",
+      const response = await fetch(API + "/report", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body)
+      });
 
-            headers: {
-              "Content-Type":
-                "application/json"
-            },
+      if (!response.ok) throw new Error(`Backend returned ${response.status}`);
 
-            body:
-              JSON.stringify(body)
-          }
-        );
+      const r = await response.json();
 
-      if (!response.ok) {
-        throw new Error(
-          `Backend returned ${response.status}`
-        );
-      }
-
-      const r =
-        await response.json();
-
-      $("#msg").textContent =
-        r.duplicate
-          ? `Grouped with an existing issue (similarity ${r.similarity}). Priority: ${r.priority}`
-          : `New issue sent to ${r.department}. Priority: ${r.priority}`;
+      $("#msg").textContent = r.duplicate
+        ? `Grouped with an existing issue (similarity ${r.similarity}). Priority: ${r.priority}`
+        : `New issue sent to ${r.department}. Priority: ${r.priority}`;
 
       e.target.reset();
-
-      $("#student").value =
-        student;
+      $("#student").value = student;
 
     } catch (err) {
-      console.error(
-        "Submit error:",
-        err
-      );
-
-      $("#msg").textContent =
-        "Backend not reachable";
+      console.error("Submit error:", err);
+      $("#msg").textContent = "Backend not reachable";
     }
   };
 }
 
 // =========================
-// FIRESTORE ISSUES
+// FIRESTORE ISSUES LISTENER
 // =========================
-
-let issues = [];
 
 onSnapshot(
   collection(db, "issues"),
 
   snapshot => {
-    console.log(
-      "issues received:",
-      snapshot.size
-    );
+    console.log("issues received:", snapshot.size);
 
-    issues =
-      snapshot.docs
-        .map(d => ({
-          id: d.id,
-          ...d.data()
-        }))
-        .sort(
-          (a, b) =>
-            (b.score || 0) -
-            (a.score || 0)
-        );
+    issues = snapshot.docs
+      .map(d => ({
+        id: d.id,
+        ...d.data()
+      }))
+      .sort((a, b) => (b.score || 0) - (a.score || 0));
 
     renderAuth();
     renderAdmin();
+
+    // Re-render cached report docs with updated parent issue status
+    // ✅ Corrected Code
+  const output = $("#list") || $("#mine");
+  if (output && cachedReportsDocs) {
+    renderMyReports(cachedReportsDocs, output);
+  }
   },
 
   err => {
-    console.error(
-      "Firestore listener error:",
-      err.code,
-      err.message
-    );
+    console.error("Firestore listener error:", err.code, err.message);
 
     document.body.insertAdjacentHTML(
       "afterbegin",
-
-      `<p style="
-        color:red;
-        padding:10px;
-        background:#ffe5e5;
-      ">
-        Firestore error:
-        ${esc(err.code)}
+      `<p style="color:red; padding:10px; background:#ffe5e5;">
+        Firestore error: ${esc(err.code)}
       </p>`
     );
   }
 );
 
 // =========================
-// ISSUE CARD
+// ISSUE CARD TEMPLATE
 // =========================
 
-const card = (
-  issue,
-  controls = ""
-) => {
+const card = (issue, controls = "") => {
   return `
     <div class="card p-${esc(issue.priority)}">
+      <b>${esc(issue.category)}</b>
+      · ${esc(issue.building)} ${esc(issue.floor)} ${esc(issue.room)}
 
-      <b>
-        ${esc(issue.category)}
-      </b>
-
-      · ${esc(issue.building)}
-      ${esc(issue.floor)}
-      ${esc(issue.room)}
-
-      <span class="tag">
-        ${esc(issue.priority)}
-      </span>
-
-      <span class="tag">
-        ${esc(issue.status)}
-      </span>
+      <span class="tag">${esc(issue.priority)}</span>
+      <span class="tag">${esc(issue.status)}</span>
 
       <br>
-
-      ${esc(issue.reportCount || 0)}
-      report(s)
-
-      · ${esc(issue.department)}
+      ${esc(issue.reportCount || 0)} report(s) · ${esc(issue.department)}
 
       <br>
+      <small>${esc(issue.reason)}</small>
 
-      <small>
-        ${esc(issue.reason)}
-      </small>
-
-      <div>
-        ${controls}
-      </div>
-
+      <div>${controls}</div>
     </div>
   `;
 };
@@ -377,145 +251,83 @@ const card = (
 // =========================
 
 function renderAuth() {
-  if (!$("#authList") || !$("#dept")) {
-    return;
-  }
+  if (!$("#authList") || !$("#dept")) return;
+  // ... rest of renderAuth function
+}
 
-  const department =
-    $("#dept").value;
+  const department = $("#dept").value;
 
-  const filtered =
-    issues.filter(
-      issue =>
-        department === "Admin" ||
-        issue.department === department
-    );
+  const filtered = issues.filter(
+    issue => department === "Admin" || issue.department === department
+  );
 
   $("#authList").innerHTML =
     filtered
       .map(issue =>
         card(
           issue,
-
-          STATUS
-            .map(status => `
-              <button
-                data-id="${esc(issue.id)}"
-                data-s="${esc(status)}"
-              >
-                ${esc(status)}
-              </button>
-            `)
-            .join("")
+          STATUS.map(status => `
+            <button
+              data-id="${esc(issue.id)}"
+              data-s="${esc(status)}"
+            >
+              ${esc(status)}
+            </button>
+          `).join("")
         )
       )
-      .join("")
-    || "No issues";
-}
+      .join("") || "No issues";
 
-// =========================
-// DEPARTMENT CHANGE
-// =========================
 
 if ($("#dept")) {
-  $("#dept").onchange =
-    renderAuth;
+  $("#dept").onchange = renderAuth;
 }
 
 // =========================
 // UPDATE ISSUE STATUS
 // =========================
 
-document.addEventListener(
-  "click",
+document.addEventListener("click", async e => {
+  const button = e.target.closest("[data-s]");
+  if (!button) return;
 
-  async e => {
-    const button =
-      e.target.closest("[data-s]");
+  try {
+    await updateDoc(doc(db, "issues", button.dataset.id), {
+      status: button.dataset.s,
+      updatedAt: serverTimestamp(),
+      history: arrayUnion({
+        status: button.dataset.s,
+        at: Date.now()
+      })
+    });
 
-    if (!button) {
-      return;
-    }
-
-    try {
-      await updateDoc(
-        doc(
-          db,
-          "issues",
-          button.dataset.id
-        ),
-
-        {
-          status:
-            button.dataset.s,
-
-          updatedAt:
-            serverTimestamp(),
-
-          history:
-            arrayUnion({
-              status:
-                button.dataset.s,
-
-              at:
-                Date.now()
-            })
-        }
-      );
-
-      console.log(
-        "Issue status updated"
-      );
-
-    } catch (err) {
-      console.error(
-        "Status update failed:",
-        err
-      );
-    }
+    console.log("Issue status updated");
+  } catch (err) {
+    console.error("Status update failed:", err);
   }
-);
+});
 
 // =========================
 // ADMIN DASHBOARD
 // =========================
 
 function renderAdmin() {
-  if (!$("#admin")) {
-    return;
-  }
+  if (!$("#admin")) return;
 
   const tally = key => {
-    const data =
-      issues.reduce(
-        (map, issue) => {
-          const name =
-            issue[key] || "Unknown";
-
-          map[name] =
-            (map[name] || 0) +
-            (issue.reportCount || 0);
-
-          return map;
-        },
-        {}
-      );
+    const data = issues.reduce((map, issue) => {
+      const name = issue[key] || "Unknown";
+      map[name] = (map[name] || 0) + (issue.reportCount || 0);
+      return map;
+    }, {});
 
     return Object.entries(data)
       .map(
         ([name, count]) => `
           <div class="bar">
-
-            <span>
-              ${esc(name)}
-            </span>
-
-            <i
-              style="width:${count * 30}px"
-            ></i>
-
+            <span>${esc(name)}</span>
+            <i style="width:${count * 30}px"></i>
             ${count}
-
           </div>
         `
       )
@@ -523,25 +335,14 @@ function renderAdmin() {
   };
 
   $("#admin").innerHTML = `
-    <h3>
-      Reports by building
-    </h3>
-
+    <h3>Reports by building</h3>
     ${tally("building")}
 
-    <h3>
-      Reports by category
-    </h3>
-
+    <h3>Reports by category</h3>
     ${tally("category")}
 
-    <h3>
-      All issues
-    </h3>
-
-    ${issues
-      .map(issue => card(issue))
-      .join("")}
+    <h3>All issues</h3>
+    ${issues.map(issue => card(issue)).join("")}
   `;
 }
 
@@ -550,160 +351,66 @@ function renderAdmin() {
 // =========================
 
 async function loadMine(studentInput = null) {
+  const output = $("#list") || $("#mine");
+  if (!output) return;
 
-  if (!$("#list") && !$("#mine")) {
-    return;
-  }
-
-  // Get the name entered by the student
-  const student =
-    studentInput !== null
-      ? studentInput.trim()
-      : localStorage.getItem("student") || "";
+  const student = studentInput !== null
+    ? studentInput.trim()
+    : localStorage.getItem("student") || "";
 
   if (!student) {
-    if ($("#list")) {
-      $("#list").innerHTML =
-        "Please enter your name / ID.";
-    }
-
+    output.innerHTML = "Please enter your name / ID.";
     return;
   }
 
-  // Save the name for future visits
-  localStorage.setItem(
-    "student",
-    student
-  );
-
-  const output =
-    $("#list") || $("#mine");
-
-  output.innerHTML =
-    "Loading reports...";
+  localStorage.setItem("student", student);
+  output.innerHTML = "Loading reports...";
 
   try {
+    console.log("Searching reports for student:", JSON.stringify(student));
 
-    console.log(
-      "Searching reports for student:",
-      JSON.stringify(student)
+    const reportsQuery = query(
+      collection(db, "reports"),
+      where("student", "==", student)
     );
 
-    // IMPORTANT:
-    // Firestore field is "student"
-    // and the stored value is "Jainesh"
-    const reportsQuery =
-      query(
-        collection(db, "reports"),
-        where(
-          "student",
-          "==",
-          student
-        )
-      );
-
-    const snapshot =
-      await getDocs(
-        reportsQuery
-      );
-
-    console.log(
-      "Reports received:",
-      snapshot.size
-    );
-
-    // =========================
-    // NO REPORTS
-    // =========================
+    const snapshot = await getDocs(reportsQuery);
 
     if (snapshot.empty) {
+      // Case-insensitive client-side fallback
+      const allReports = await getDocs(collection(db, "reports"));
+      const searchName = student.toLowerCase();
 
-      // Try a case-insensitive fallback.
-      // This reads the reports collection and
-      // compares names after converting to lowercase.
-      const allReports =
-        await getDocs(
-          collection(db, "reports")
-        );
-
-      const searchName =
-        student.trim().toLowerCase();
-
-      const matchingDocs =
-        allReports.docs.filter(d => {
-
-          const data = d.data();
-
-          return (
-            String(
-              data.student || ""
-            )
-              .trim()
-              .toLowerCase()
-            === searchName
-          );
-        });
-
-      console.log(
-        "Case-insensitive matches:",
-        matchingDocs.length
-      );
+      const matchingDocs = allReports.docs.filter(d => {
+        const data = d.data();
+        return String(data.student || "").trim().toLowerCase() === searchName;
+      });
 
       if (matchingDocs.length === 0) {
-
+        cachedReportsDocs = null;
         output.innerHTML = `
           <div class="card">
-            No reports found for
-            <b>${esc(student)}</b>.
+            No reports found for <b>${esc(student)}</b>.
           </div>
         `;
-
         return;
       }
 
-      // Render the case-insensitive matches
-      renderMyReports(
-        matchingDocs,
-        output
-      );
-
+      cachedReportsDocs = matchingDocs;
+      renderMyReports(matchingDocs, output);
       return;
     }
 
-    // =========================
-    // REPORTS FOUND
-    // =========================
-
-    renderMyReports(
-      snapshot.docs,
-      output
-    );
+    cachedReportsDocs = snapshot.docs;
+    renderMyReports(snapshot.docs, output);
 
   } catch (err) {
-
-    console.error(
-      "Error fetching reports:",
-      err.code,
-      err.message
-    );
+    console.error("Error fetching reports:", err.code, err.message);
 
     output.innerHTML = `
-      <div
-        class="card"
-        style="color:red"
-      >
-
-        <b>
-          Failed to fetch reports
-        </b>
-
-        <br>
-
-        ${esc(
-          err.code ||
-          err.message
-        )}
-
+      <div class="card" style="color:red">
+        <b>Failed to fetch reports</b><br>
+        ${esc(err.code || err.message)}
       </div>
     `;
   }
@@ -713,173 +420,65 @@ async function loadMine(studentInput = null) {
 // RENDER MY REPORTS
 // =========================
 
-function renderMyReports(
-  reportDocs,
-  output
-) {
+function renderMyReports(reportDocs, output) {
+  output.innerHTML = reportDocs
+    .map(d => {
+      const report = d.data();
+      const issue = issues.find(x => x.id === report.issueId) || {};
 
-  output.innerHTML =
-    reportDocs
-      .map(d => {
+      return `
+        <div class="card">
+          <h3>${esc(report.category || issue.category || "Campus Issue")}</h3>
+          <p>${esc(report.description || "")}</p>
 
-        const report =
-          d.data();
+          <p>
+            <b>Location:</b>
+            ${esc(report.building || issue.building || "")}
+            ·
+            ${esc(report.floor || issue.floor || "")}
+            ${report.room || issue.room ? ` · ${esc(report.room || issue.room)}` : ""}
+          </p>
 
-        // Find the corresponding issue
-        // using issueId stored in reports
-        const issue =
-          issues.find(
-            x =>
-              x.id ===
-              report.issueId
-          ) || {};
+          ${report.photo ? `<img src="${report.photo}" style="max-width:300px; border-radius:10px;">` : ""}
 
-        return `
-          <div class="card">
+          <p><b>Status:</b> ${esc(issue.status || "Submitted")}</p>
+          <p>
+            <b>Priority:</b> ${esc(issue.priority || "Pending")}
+            ·
+            <b>Department:</b> ${esc(issue.department || "Not assigned")}
+          </p>
 
-            <h3>
-              ${esc(
-                report.category ||
-                issue.category ||
-                "Campus Issue"
-              )}
-            </h3>
-
-            <p>
-              ${esc(
-                report.description ||
-                ""
-              )}
-            </p>
-
-            <p>
-              <b>
-                Location:
-              </b>
-
-              ${esc(
-                report.building ||
-                issue.building ||
-                ""
-              )}
-
-              ·
-
-              ${esc(
-                report.floor ||
-                issue.floor ||
-                ""
-              )}
-
-              ${
-                report.room ||
-                issue.room
-                  ? ` · ${esc(
-                      report.room ||
-                      issue.room
-                    )}`
-                  : ""
-              }
-
-            </p>
-
-            ${
-              report.photo
-                ? `
-                  <img
-                    src="${report.photo}"
-                    style="
-                      max-width:300px;
-                      border-radius:10px;
-                    "
-                  >
-                `
-                : ""
-            }
-
-            <p>
-              <b>
-                Status:
-              </b>
-
-              ${esc(
-                issue.status ||
-                "Submitted"
-              )}
-            </p>
-
-            <p>
-              <b>
-                Priority:
-              </b>
-
-              ${esc(
-                issue.priority ||
-                "Pending"
-              )}
-
-              ·
-
-              <b>
-                Department:
-              </b>
-
-              ${esc(
-                issue.department ||
-                "Not assigned"
-              )}
-            </p>
-
-            ${
-              issue.history &&
-              issue.history.length
-                ? `
-                  <small>
-                    ${issue.history
-                      .map(
-                        h =>
-                          esc(
-                            h.status
-                          )
-                      )
-                      .join(" → ")}
-                  </small>
-                `
-                : ""
-            }
-
-          </div>
-        `;
-      })
-      .join("");
+          ${issue.history && issue.history.length
+            ? `<small>${issue.history.map(h => esc(h.status)).join(" → ")}</small>`
+            : ""
+          }
+        </div>
+      `;
+    })
+    .join("");
 }
 
 // =========================
-// MY REPORTS PAGE
+// MY REPORTS FORM LOOKUP
 // =========================
 
 if ($("#lookup")) {
+  $("#lookup").onsubmit = e => {
+    e.preventDefault();
+    const student = $("#student").value.trim();
 
-  $("#lookup").onsubmit =
-    e => {
+    if (!student) {
+      if ($("#list")) $("#list").innerHTML = "Please enter your name / ID.";
+      return;
+    }
 
-      e.preventDefault();
-
-      const student =
-        $("#student")
-          .value
-          .trim();
-
-      if (!student) {
-
-        $("#list").innerHTML =
-          "Please enter your name / ID.";
-
-        return;
-      }
-
-      loadMine(student);
-    };
+    loadMine(student);
+  };
 }
 
-
+// Run lookup on page load if a name is pre-filled in the input
+document.addEventListener("DOMContentLoaded", () => {
+  if ($("#student") && $("#student").value.trim()) {
+    loadMine($("#student").value.trim());
+  }
+});
