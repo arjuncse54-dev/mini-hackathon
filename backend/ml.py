@@ -1,17 +1,10 @@
+# Lightweight ml.py: numpy only (no torch / sklearn / sentence-transformers).
+# Lexical (hashed character n-gram) similarity + keyword classifier, English + Hinglish.
+import re
+import zlib
 import numpy as np
-from sentence_transformers import SentenceTransformer
 
-model = SentenceTransformer("paraphrase-multilingual-MiniLM-L12-v2")
-
-CATEGORIES = {
-    "Electrical": "light bulb fan switch wiring power electricity socket",
-    "Wi-Fi / Network": "wifi internet network router connection slow",
-    "Water leakage": "water leak pipe tap flooding seepage",
-    "Sanitation": "toilet washroom dirty garbage cleaning smell",
-    "Hostel issue": "hostel room mess warden bed",
-    "Classroom equipment": "projector bench desk board classroom chair",
-    "Security": "theft stranger lock cctv unsafe harassment",
-}
+DIM = 384
 ROUTING = {"Electrical": "Electrical", "Wi-Fi / Network": "IT Department", "Water leakage": "Plumbing",
            "Sanitation": "Sanitation", "Hostel issue": "Hostel Warden",
            "Classroom equipment": "Infrastructure", "Security": "Security"}
@@ -19,19 +12,37 @@ BASE = {"Security": 4, "Electrical": 3, "Water leakage": 3, "Hostel issue": 2,
         "Sanitation": 2, "Classroom equipment": 1, "Wi-Fi / Network": 1}
 DANGER = ["spark", "short circuit", "shock", "flood", "fire", "wire", "theft", "chingari", "current"]
 CRITICAL = ["lab", "hostel", "exam", "library"]
+KEYWORDS = {
+    "Electrical": ["light", "bulb", "fan", "switch", "wir", "power", "socket", "electric", "tubelight", "bijli", "spark"],
+    "Wi-Fi / Network": ["wifi", "internet", "network", "router", "lan", "bandwidth"],
+    "Water leakage": ["water", "leak", "pipe", "tap", "paani", "pani", "flood", "seepage"],
+    "Sanitation": ["toilet", "washroom", "dirty", "garbage", "clean", "smell", "dustbin", "gandagi"],
+    "Hostel issue": ["hostel", "mess", "warden", "bed"],
+    "Classroom equipment": ["projector", "bench", "desk", "board", "chair", "classroom", "mic"],
+    "Security": ["theft", "stol", "stranger", "lock", "cctv", "unsafe", "harass", "chori"],
+}
 
-NAMES = list(CATEGORIES)
-VECS = model.encode(list(CATEGORIES.values()), normalize_embeddings=True)
+
+def _tokens(text):
+    return re.findall(r"[a-z0-9]+", text.lower().replace("-", ""))
 
 
 def embed(text):
-    return model.encode(text, normalize_embeddings=True)
+    v = np.zeros(DIM, dtype=np.float32)
+    for w in _tokens(text):
+        v[zlib.crc32(("w:" + w).encode()) % DIM] += 2.0
+        p = f"#{w}#"
+        for i in range(len(p) - 2):
+            v[zlib.crc32(p[i:i + 3].encode()) % DIM] += 1.0
+    n = np.linalg.norm(v)
+    return v / n if n else v
 
 
-def classify(vec):
-    sims = VECS @ vec
-    i = int(sims.argmax())
-    return NAMES[i] if sims[i] >= 0.25 else "Unclassified"
+def classify(text):
+    toks = _tokens(text)
+    scores = {c: sum(any(t.startswith(k) for k in ks) for t in toks) for c, ks in KEYWORDS.items()}
+    best = max(scores, key=scores.get)
+    return best if scores[best] > 0 else "Unclassified"
 
 
 def flags(text):
@@ -49,7 +60,7 @@ def priority(cat, danger, crit, n):
     return score, level, why
 
 
-def find_duplicate(vec, cands, thr=0.75):
+def find_duplicate(vec, cands, thr=0.35):
     best, sim = None, 0.0
     for c in cands:
         s = float(np.dot(vec, np.array(c["embedding"])))

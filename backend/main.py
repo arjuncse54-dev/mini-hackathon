@@ -25,8 +25,8 @@ class Report(BaseModel):
 
 @app.post("/report")
 def report(r: Report):
-    vec = ml.embed(r.description)
-    cat = r.category if r.category and r.category != "Auto-detect" else ml.classify(vec)
+    vec = ml.embed(f"{r.room} {r.description}")
+    cat = r.category if r.category and r.category != "Auto-detect" else ml.classify(r.description)
     q = (db.collection("issues").where("building", "==", r.building)
          .where("floor", "==", r.floor).where("category", "==", cat))
     cands = [{"id": d.id, **d.to_dict()} for d in q.stream() if d.to_dict()["status"] != "Resolved"]
