@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Campus Issues</title><link rel="stylesheet" href="/src/style.css"></head>
+<body>
+<nav>
+  <button data-t="report" class="on">Report</button><button data-t="mine">My Reports</button>
+  <button data-t="auth">Authority</button><button data-t="admin">Admin</button>
+</nav>
+<section id="report">
+  <form id="form">
+    <input id="student" placeholder="Your name / ID" required>
+    <select id="cat"></select>
+    <select id="building"></select><select id="floor"></select>
+    <input id="room" placeholder="Room (e.g. Lab 204)">
+    <textarea id="desc" placeholder="Describe the issue" required></textarea>
+    <input id="photo" type="file" accept="image/*">
+    <button>Submit</button><p id="msg"></p>
+  </form>
+</section>
+<section id="mine" hidden></section>
+<section id="auth" hidden><select id="dept"></select><div id="authList"></div></section>
+<section id="admin" hidden></section>
+<script type="module" src="/src/main.js"></script>
+</body></html>
